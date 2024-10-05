@@ -1,0 +1,68 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+#include <time.h>
+
+#define TAMANHO 100000
+
+void bubbleSort(int *arr, int n) {
+    int i, j, temp;
+    for (i = 0; i < n-1; i++) {
+        for (j = 0; j < n-i-1; j++) {
+            if (arr[j] > arr[j+1]) {
+                temp = arr[j];
+                arr[j] = arr[j+1];
+                arr[j+1] = temp;
+            }
+        }
+    }
+}
+
+int main(int argc, char* argv[]) {
+    int rank, size, i;
+    int *arr = NULL, *subarr = NULL;
+    int subsize;
+    double inicio, fim;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Define o tamanho do subarray para cada processo
+    subsize = TAMANHO / size;
+
+    // Processo mestre inicializa o array completo
+    if (rank == 0) {
+        arr = (int*) malloc(TAMANHO * sizeof(int));
+        srand(time(NULL));
+        for (i = 0; i < TAMANHO; i++) {
+            arr[i] = rand() % 10000;
+        }
+    }
+
+    // Cada processo recebe uma parte do array
+    subarr = (int*) malloc(subsize * sizeof(int));
+    MPI_Scatter(arr, subsize, MPI_INT, subarr, subsize, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Inicia o tempo
+    inicio = MPI_Wtime();
+
+    // Cada processo ordena seu subarray
+    bubbleSort(subarr, subsize);
+
+    // Reúne os subarrays no processo mestre
+    MPI_Gather(subarr, subsize, MPI_INT, arr, subsize, MPI_INT, 0, MPI_COMM_WORLD);
+
+    // Processo mestre faz a ordenação final
+    if (rank == 0) {
+        bubbleSort(arr, TAMANHO);
+        fim = MPI_Wtime();
+        printf("Tempo MPI: %f segundos\n", fim - inicio);
+
+        free(arr);
+    }
+
+    free(subarr);
+    MPI_Finalize();
+    return 0;
+}
